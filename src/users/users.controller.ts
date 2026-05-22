@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, ParseIntPipe, Delete, Put } from '@nestjs/common';
-import { CreateUserDto, UpdateUserDto } from './user.dto';
+import { CreateUserDto, UpdateUserDto } from './dtos/user.dto';
 import { User } from './entities/user.entity';
 import { UsersService } from './users.service';
 
@@ -15,6 +15,11 @@ export class UsersController {
   @Get(':id')
   async findUser(@Param('id', ParseIntPipe) id: number): Promise<User> {
     return this.usersService.getUserById(id);
+  }
+
+  @Get(':id/profile')
+  async findUserProfile(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.getProfileByUserId(id);
   }
 
   @Post()
