@@ -1,55 +1,58 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { User } from './user.model';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from './user.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from './entities/user.entity';
 
 @Injectable()
 export class UsersService {
-  private users: User[] = [
-    { id: 1, name: 'Alice', email: 'alice@example.com' },
-    { id: 2, name: 'Bob', email: 'bob@example.com' },
-    { id: 3, name: 'Charlie', email: 'charlie@example.com' },
-  ];
+  @InjectRepository(User)
+  private usersRepository!: Repository<User>;
 
-  findAll(): User[] {
-    return this.users;
+  findAll(): Promise<User[]> {
+    return this.usersRepository.find({
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  getUserById(id: number): User | undefined {
-    const index = this.findOne(id);
-    const user = this.users[index];
+  async getUserById(id: number): Promise<User> {
+    const user = await this.findOne(id);
     if (user.id === 1) {
-      throw new ForbiddenException(`Access to user #${id} is forbidden`);
+      throw new ForbiddenException(`You do not have permission to access User #${id}`);
     }
     return user;
   }
 
-  create(newUser: CreateUserDto): User {
-    const id = this.users.length + 1;
-    const user: User = { id, name: newUser.name, email: newUser.email };
-    this.users.push(user);
-    return user;
-  }
-
-  update(id: number, updatedUser: UpdateUserDto): User | undefined {
-    const user = this.getUserById(id);
-    if (user) {
-      Object.assign(user, updatedUser);
-      return user;
+  async create(newUser: CreateUserDto): Promise<{ message: string; user: User }> {
+    try {
+      const user = await this.usersRepository.save(newUser);
+      return { message: `User created successfully`, user };
+    } catch (error) {
+      throw new BadRequestException(`Error creating user: ${(error as Error).message}`);
     }
-    return updatedUser as User;
   }
 
-  delete(id: number): { message: string; user: User } | false {
-    const index = this.findOne(id);
-    const [user] = this.users.splice(index, 1);
+  async update(id: number, updatedUser: UpdateUserDto): Promise<User> {
+    try {
+      const user = await this.findOne(id);
+      const updateUser = this.usersRepository.merge(user, updatedUser);
+      return await this.usersRepository.save(updateUser);
+    } catch (error) {
+      throw new BadRequestException(`Error updating user: ${(error as Error).message}`);
+    }
+  }
+
+  async delete(id: number): Promise<{ message: string; user: User }> {
+    const user = await this.findOne(id);
+    await this.usersRepository.remove(user);
     return { message: `User #${id} deleted successfully`, user };
   }
 
-  private findOne(id: number): number {
-    const index = this.users.findIndex((user) => user.id === id);
-    if (index === -1) {
+  private async findOne(id: number): Promise<User> {
+    const user = await this.usersRepository.findOneBy({ id });
+    if (!user) {
       throw new NotFoundException(`User #${id} not found`);
     }
-    return index;
+    return user;
   }
 }
